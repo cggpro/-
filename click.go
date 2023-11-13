@@ -9,7 +9,7 @@ import (
 
 	"github.com/go-vgo/robotgo"
 )
-
+// v1版本
 func main() {
 	args := os.Args
 	interval := 2 // 默认间隔时间，单位为秒

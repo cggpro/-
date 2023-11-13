@@ -6,11 +6,12 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+	"strings"
 
 	"github.com/go-vgo/robotgo"
 )
 /**
-	* V2版本:实现自动点击功能
+	* 实现自动点击功能
 	* 命令示例： click.exe 2 60   间隔点击时间2s, 超时关闭时间60s
 	* f9 开启自动点击, f10 关闭自动点击
 **/
@@ -44,7 +45,7 @@ func main() {
 	close := "f10"
 	fmt.Println("已设置点击间隔时间为", interval, "秒")
 	fmt.Println("已设置自动关闭时间为", timeout, "秒")
-	fmt.Printf("按下 %s 启动自动点击，按下 %s 停止自动点击\n", open, close)
+	fmt.Printf("按下 %s 启动自动点击，按下 %s 停止自动点击\n", strings.ToUpper(open), strings.ToUpper(close))
 
 	startAutoClick := make(chan bool)
 	stopAutoClick := make(chan bool)

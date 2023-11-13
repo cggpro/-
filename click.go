@@ -12,10 +12,9 @@ import (
 
 func main() {
 	args := os.Args
-	interval := 5 // 默认间隔时间，单位为秒
+	interval := 2 // 默认间隔时间，单位为秒
 	if len(args) > 1 {
 		argInterval := args[1]
-		fmt.Println("从命令行设置点击间隔时间为", argInterval, "秒")
 		parsedInterval, err := time.ParseDuration(argInterval + "s")
 		if err == nil {
 			interval = int(parsedInterval.Seconds())
@@ -23,12 +22,15 @@ func main() {
 			fmt.Println("无效的间隔时间参数，默认使用", interval, "秒")
 		}
 	}
+
 	open := "f9"
 	close := "f10"
+	fmt.Println("已设置点击间隔时间为", interval, "秒")
 	fmt.Printf("按下 %s 启动自动点击，按下 %s 停止自动点击\n", open, close)
 
 	startAutoClick := make(chan bool)
 	stopAutoClick := make(chan bool)
+
 
 	go func() {
 		for {

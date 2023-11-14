@@ -18,7 +18,7 @@ import (
 func main() {
 	args := os.Args
 	interval := 2 // 默认间隔时间，单位为秒
-	timeout := 180// 默认超时关闭时间，单位为秒
+	timeout := 1800// 默认超时关闭时间，单位为秒
 
 	if len(args) > 1 {
 		argInterval := args[1]
@@ -28,17 +28,30 @@ func main() {
 		} else {
 			fmt.Println("无效的间隔时间参数，默认使用", interval, "秒")
 		}
-	}
-
-	if len(args) > 2 {
-		timeInterval := args[2]
-		parsedTimeout, err := time.ParseDuration(timeInterval + "s")
-		if err != nil {
-			fmt.Println("无效的自动关闭时间参数，默认使用", timeout, "秒")
-		} else {
-			timeout = int(parsedTimeout.Seconds())
+		if len(args) > 2 {
+			timeInterval := args[2]
+			parsedTimeout, err := time.ParseDuration(timeInterval + "s")
+			if err != nil {
+				fmt.Println("无效的自动关闭时间参数，默认使用", timeout, "秒")
+			} else {
+				timeout = int(parsedTimeout.Seconds())
+			}
+		}
+	}else {
+		var inputInTerval, inputTimeout int
+		fmt.Println("请输入点击间隔时间(秒)，不输入默认为",interval,"秒：")
+		_, err := fmt.Scanln(&inputInTerval)
+		if err == nil {
+			interval = inputInTerval
+		}
+		fmt.Println("请输入自动关闭时间(秒)，不输入默认为",timeout,"秒：")
+		_, err = fmt.Scanln(&inputTimeout)
+		if err == nil {
+			timeout = inputTimeout
 		}
 	}
+
+
 	idleTimeout := time.NewTimer(time.Duration(timeout) * time.Second)
 
 	open := "f9"

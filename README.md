@@ -7,7 +7,7 @@
    示例1：命令行设置：
    ```
    click.exe 2 10
-    表示点击间隔时间为2秒，超时自动关闭时间为10秒。
+   表示点击间隔时间为2秒，超时自动关闭时间为10秒。
    ```
    示例2：双击后设置
    ![image](https://github.com/cggpro/GenshinClick/assets/120552503/5a82a2f1-0dd7-4e13-b164-a480e56fa6c2)

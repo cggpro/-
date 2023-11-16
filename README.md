@@ -10,7 +10,8 @@
    表示点击间隔时间为2秒，超时自动关闭时间为10秒。
    ```
    示例2：双击后设置
-   ![image](https://github.com/cggpro/GenshinClick/assets/120552503/5a82a2f1-0dd7-4e13-b164-a480e56fa6c2)
+   ![image](https://github.com/cggpro/GenshinClick/assets/120552503/3d6ab659-1d89-4561-ad3d-5662603d3147)
+
 
 
 3. 支持开启和关闭自动点击功能。

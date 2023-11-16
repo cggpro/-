@@ -4,15 +4,37 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
+	"unsafe"
 
 	"github.com/go-vgo/robotgo"
 )
-// v1版本
+
+var (
+	kernel32           = syscall.NewLazyDLL("kernel32.dll")
+	procGetConsoleMode = kernel32.NewProc("GetConsoleMode")
+	procSetConsoleMode = kernel32.NewProc("SetConsoleMode")
+)
+
+/**
+	* 实现自动点击功能
+	* 命令示例： click.exe 2 60   间隔点击时间2s, 超时关闭时间60s
+	* f9 开启自动点击, f10 关闭自动点击
+**/
 func main() {
+	err := disableQuickEditMode()
+	if err != nil {
+		fmt.Printf("禁用快速编辑模式失败： %v\n", err)
+		return
+	}
+	fmt.Println("当前窗口已禁用快速编辑模式")
+
 	args := os.Args
-	interval := 2 // 默认间隔时间，单位为秒
+	interval := 2   // 默认间隔时间，单位为秒
+	timeout := 1800 // 默认超时关闭时间，单位为秒
+
 	if len(args) > 1 {
 		argInterval := args[1]
 		parsedInterval, err := time.ParseDuration(argInterval + "s")
@@ -21,16 +43,39 @@ func main() {
 		} else {
 			fmt.Println("无效的间隔时间参数，默认使用", interval, "秒")
 		}
+		if len(args) > 2 {
+			timeInterval := args[2]
+			parsedTimeout, err := time.ParseDuration(timeInterval + "s")
+			if err != nil {
+				fmt.Println("无效的自动关闭时间参数，默认使用", timeout, "秒")
+			} else {
+				timeout = int(parsedTimeout.Seconds())
+			}
+		}
+	} else {
+		var inputInTerval, inputTimeout int
+		fmt.Println("请输入点击间隔时间(秒)，不输入默认为", interval, "秒：")
+		_, err := fmt.Scanln(&inputInTerval)
+		if err == nil {
+			interval = inputInTerval
+		}
+		fmt.Println("请输入自动关闭时间(秒)，不输入默认为", timeout, "秒：")
+		_, err = fmt.Scanln(&inputTimeout)
+		if err == nil {
+			timeout = inputTimeout
+		}
 	}
+
+	idleTimeout := time.NewTimer(time.Duration(timeout) * time.Second)
 
 	open := "f9"
 	close := "f10"
 	fmt.Println("已设置点击间隔时间为", interval, "秒")
-	fmt.Printf("按下 %s 启动自动点击，按下 %s 停止自动点击\n", open, close)
+	fmt.Println("已设置自动关闭时间为", timeout, "秒")
+	fmt.Printf("按下 %s 启动自动点击，按下 %s 停止自动点击\n", strings.ToUpper(open), strings.ToUpper(close))
 
 	startAutoClick := make(chan bool)
 	stopAutoClick := make(chan bool)
-
 
 	go func() {
 		for {
@@ -47,6 +92,10 @@ func main() {
 	autoClicking := false
 	for {
 		select {
+		case <-idleTimeout.C:
+			fmt.Println("程序空闲超过", timeout, "秒，自动退出")
+			return
+
 		case <-startAutoClick:
 			if !autoClicking {
 				autoClicking = true
@@ -54,6 +103,9 @@ func main() {
 				go func() {
 					for autoClicking {
 						robotgo.MouseClick("left", false)
+						// 重置自动关闭计时器
+						resetIdleTimeout(idleTimeout, time.Duration(timeout)*time.Second)
+						// 休眠
 						time.Sleep(time.Duration(interval) * time.Second)
 					}
 				}()
@@ -62,6 +114,8 @@ func main() {
 			if autoClicking {
 				autoClicking = false
 				fmt.Println("停止自动点击")
+				// 重置自动关闭计时器
+				resetIdleTimeout(idleTimeout, time.Duration(timeout)*time.Second)
 			}
 		case sig := <-getOSInterruptChannel():
 			fmt.Println("接收到信号:", sig)
@@ -75,4 +129,34 @@ func getOSInterruptChannel() chan os.Signal {
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	return c
+}
+
+func resetIdleTimeout(timer *time.Timer, duration time.Duration) {
+	if !timer.Stop() {
+		<-timer.C
+	}
+	timer.Reset(duration)
+}
+
+func disableQuickEditMode() error {
+	var mode uint32
+	stdoutHandle := syscall.Stdout
+
+	// 获取当前控制台模式
+	ret, _, err := procGetConsoleMode.Call(uintptr(stdoutHandle), uintptr(unsafe.Pointer(&mode)))
+	if ret == 0 {
+		return fmt.Errorf("获取控制台模式失败: %v", err)
+	}
+
+	// 取消快速编辑模式
+	const ENABLE_QUICK_EDIT_MODE uint32 = 0x40
+	newMode := mode &^ ENABLE_QUICK_EDIT_MODE
+
+	// 设置新的控制台模式
+	ret, _, err = procSetConsoleMode.Call(uintptr(stdoutHandle), uintptr(newMode))
+	if ret == 0 {
+		return fmt.Errorf("设置控制台模式失败: %v", err)
+	}
+
+	return nil
 }

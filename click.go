@@ -7,15 +7,10 @@ import (
 	"strings"
 	"syscall"
 	"time"
-	"unsafe"
+
+	"golang.org/x/sys/windows"
 
 	"github.com/go-vgo/robotgo"
-)
-
-var (
-	kernel32           = syscall.NewLazyDLL("kernel32.dll")
-	procGetConsoleMode = kernel32.NewProc("GetConsoleMode")
-	procSetConsoleMode = kernel32.NewProc("SetConsoleMode")
 )
 
 /**
@@ -32,39 +27,13 @@ func main() {
 	fmt.Println("当前窗口已禁用快速编辑模式")
 
 	args := os.Args
-	interval := 2   // 默认间隔时间，单位为秒
-	timeout := 1800 // 默认超时关闭时间，单位为秒
-
-	if len(args) > 1 {
-		argInterval := args[1]
-		parsedInterval, err := time.ParseDuration(argInterval + "s")
-		if err == nil {
-			interval = int(parsedInterval.Seconds())
-		} else {
-			fmt.Println("无效的间隔时间参数，默认使用", interval, "秒")
-		}
-		if len(args) > 2 {
-			timeInterval := args[2]
-			parsedTimeout, err := time.ParseDuration(timeInterval + "s")
-			if err != nil {
-				fmt.Println("无效的自动关闭时间参数，默认使用", timeout, "秒")
-			} else {
-				timeout = int(parsedTimeout.Seconds())
-			}
-		}
-	} else {
-		var inputInTerval, inputTimeout int
-		fmt.Println("请输入点击间隔时间(秒)，不输入默认为", interval, "秒：")
-		_, err := fmt.Scanln(&inputInTerval)
-		if err == nil {
-			interval = inputInTerval
-		}
-		fmt.Println("请输入自动关闭时间(秒)，不输入默认为", timeout, "秒：")
-		_, err = fmt.Scanln(&inputTimeout)
-		if err == nil {
-			timeout = inputTimeout
-		}
+	config, err := parseInputArgs(args)
+	if err != nil {
+		fmt.Println("参数解析错误:", err)
+		return
 	}
+	interval := config.Interval // 默认间隔时间，单位为秒
+	timeout := config.Timeout   // 默认超时关闭时间，单位为秒
 
 	idleTimeout := time.NewTimer(time.Duration(timeout) * time.Second)
 
@@ -106,7 +75,7 @@ func main() {
 						// 重置自动关闭计时器
 						resetIdleTimeout(idleTimeout, time.Duration(timeout)*time.Second)
 						// 休眠
-						time.Sleep(time.Duration(interval) * time.Second)
+						time.Sleep(time.Duration(interval * float64(time.Second)))
 					}
 				}()
 			}
@@ -125,6 +94,54 @@ func main() {
 	}
 }
 
+// 参数配置
+type Config struct {
+	Interval float64
+	Timeout  int
+}
+
+func parseInputArgs(args []string) (Config, error) {
+	var config Config
+	config.Interval = 2.0
+	config.Timeout = 1800
+
+	if len(args) > 1 {
+		argInterval := args[1]
+		parsedInterval, err := time.ParseDuration(argInterval + "s")
+		if err == nil {
+			config.Interval = parsedInterval.Seconds()
+		} else {
+			fmt.Println("无效的间隔时间参数，默认使用", config.Interval, "秒")
+		}
+		if len(args) > 2 {
+			timeInterval := args[2]
+			parsedTimeout, err := time.ParseDuration(timeInterval + "s")
+			if err != nil {
+				fmt.Println("无效的自动关闭时间参数，默认使用", config.Timeout, "秒")
+			} else {
+				config.Timeout = int(parsedTimeout.Seconds())
+			}
+		}
+	} else {
+		var inputInTerval float64
+		var inputTimeout int
+		fmt.Println("请输入点击间隔时间(秒)，最小为1秒，不输入默认为", config.Interval, "秒：")
+		_, err := fmt.Scanln(&inputInTerval)
+		if err == nil {
+			config.Interval = inputInTerval
+		}
+		fmt.Println("请输入自动关闭时间(秒)，不输入默认为", config.Timeout, "秒：")
+		_, err = fmt.Scanln(&inputTimeout)
+		if err == nil {
+			config.Timeout = inputTimeout
+		}
+	}
+	if config.Interval < 1 {
+		config.Interval = 1
+	}
+	return config, nil
+}
+
 func getOSInterruptChannel() chan os.Signal {
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
@@ -138,24 +155,28 @@ func resetIdleTimeout(timer *time.Timer, duration time.Duration) {
 	timer.Reset(duration)
 }
 
+// disableQuickEditMode disables the quick edit mode in the console.
+//
+// This function takes no parameters.
+// It returns an error if there was a problem disabling the quick edit mode.
 func disableQuickEditMode() error {
-	var mode uint32
-	stdoutHandle := syscall.Stdout
+	winConsole := windows.Handle(os.Stdin.Fd())
 
-	// 获取当前控制台模式
-	ret, _, err := procGetConsoleMode.Call(uintptr(stdoutHandle), uintptr(unsafe.Pointer(&mode)))
-	if ret == 0 {
-		return fmt.Errorf("获取控制台模式失败: %v", err)
+	var mode uint32
+	err := windows.GetConsoleMode(winConsole, &mode)
+	if err != nil {
+		return fmt.Errorf("GetConsoleMode: %w", err)
 	}
 
-	// 取消快速编辑模式
-	const ENABLE_QUICK_EDIT_MODE uint32 = 0x40
-	newMode := mode &^ ENABLE_QUICK_EDIT_MODE
+	// Disable this mode
+	mode &^= windows.ENABLE_QUICK_EDIT_MODE
 
-	// 设置新的控制台模式
-	ret, _, err = procSetConsoleMode.Call(uintptr(stdoutHandle), uintptr(newMode))
-	if ret == 0 {
-		return fmt.Errorf("设置控制台模式失败: %v", err)
+	// Enable this mode
+	mode |= windows.ENABLE_EXTENDED_FLAGS
+
+	err = windows.SetConsoleMode(winConsole, mode)
+	if err != nil {
+		return fmt.Errorf("SetConsoleMode: %w", err)
 	}
 
 	return nil

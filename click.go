@@ -11,6 +11,8 @@ import (
 	"golang.org/x/sys/windows"
 
 	"github.com/go-vgo/robotgo"
+
+	hook "github.com/robotn/gohook"
 )
 
 /**
@@ -48,10 +50,10 @@ func main() {
 
 	go func() {
 		for {
-			if robotgo.AddEvent(open) {
+			if hook.AddEvent(open) {
 				startAutoClick <- true
 			}
-			if robotgo.AddEvent(close) {
+			if hook.AddEvent(close) {
 				stopAutoClick <- true
 			}
 			time.Sleep(100 * time.Millisecond)
@@ -136,8 +138,8 @@ func parseInputArgs(args []string) (Config, error) {
 			config.Timeout = inputTimeout
 		}
 	}
-	if config.Interval < 1 {
-		config.Interval = 1
+	if config.Interval < 0 {
+		config.Interval = 0.1
 	}
 	return config, nil
 }
